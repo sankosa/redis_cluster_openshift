@@ -18,7 +18,7 @@ Several prerequisites have to be met to deploy a cluster successfully.
 * Make sure that the necessary PVs are available according to the needs before deployment. (each Redis Sentinel and Redis Worker requires a PV.
 
 ==== Version
-* redis_cluster_openshift:3.2
+* redis_cluster_oscp:3.2
 
 ==== Persistent Storage
 The deployment supports persistent storage.
@@ -43,7 +43,7 @@ A template to create a deployment for a sentinel.
 
 |IMAGE_STREAM_NAME
 |Name of the imagestream
-|redis_cluster_openshift
+|redis_cluster_oscp
 
 |IMAGE_STREAM_NAMESPACE
 |Namespace where the imagestream resides
@@ -106,7 +106,7 @@ A template to create a deployment for a sentinel.
 
 |IMAGE_STREAM_NAME
 |Name of the imagestream
-|redis_cluster_openshift
+|redis_cluster_oscp
 
 |IMAGE_STREAM_TAG
 |Tag for the imagestream
@@ -137,20 +137,25 @@ A template to create a deployment for a sentinel.
 === Preparation
 Assure that the imagestreams and templates are available.
 
+==== Create Project
+Create a project for Redis and its resources. Replace the placeholder $\{PROJECT} with your project where you want to deploy your Redis cluster.
+
+`$ oc new-project $\{PROJECT}`
+
 ==== Imagestream
 The deployment assumes that  the following imagestreams are in place.
 
-* redis_cluster_openshift:3.2 +
+* redis_cluster_oscp:3.2 +
 This image provides the redis node. It acts as a master, a slave and a sentinel.
 
 If these imagestreams are not already available, then create it with following command sequences.
 
-=====  Import image redis_cluster_openshift:3.2
+=====  Import image redis_cluster_oscp:3.2
 
 ----
-$ oc import-image redis_cluster_oscps:3.2 -n openshift --from=docker.io/sankosa/redis_cluster_oscp:3.2 --confirm
+$ oc import-image redis_cluster_oscp:3.2 --from=docker.io/sankosa/redis_cluster_oscp:3.2 --confirm
 
-$ oc tag --source='docker' docker.io/sankosa/redis_cluster_oscp:3.2 redis_cluster_oscps:3.2 --scheduled=true -n openshift
+$ oc tag --source='docker' docker.io/sankosa/redis_cluster_oscp:3.2 redis_cluster_oscp:3.2 --scheduled=true -n openshift
 ----
 
 The first command above creates an imagestream redis_cluster_oscps and import the metadata for image docker.io/sankosa/redis_cluster_oscp. +
@@ -158,30 +163,6 @@ The second command add the --scheduled=true flag to have the destination tag be 
 
 ==== Add Templates
 If templates are not already available, add them to the project. If you want to make them available for all projects then add them to project openshift. That is the recommended location and assumed where dealing with templates.
-
-===== Add templates to namespace openshift
-Add templates to namespace openshift in order to allow access to these templates from within all other projects.
-
-*Command*
-
-----
-$ git clone https://github.com/sankosa/redis_cluster_openshift.git
-$ oc create -f {LOCAL}/ose-artefacts/redis-node-template.yaml -n openshift
-----
-
-First command: If not already cloned then clone GIT repository into local folder {LOCAL} +
-Second command: Add template redis-node-template.yaml into namespace openshift.
-
-*Command*
-
-----
-$ git clone https://github.com/sankosa/redis_cluster_openshift.git
-$ oc create -f {LOCAL}/ose-artefacts/redis-sentinel-template.yaml -n openshift
-----
-
-First command: If not already cloned then clone GIT repository into local folder {LOCAL} +
-Second command: Add template redis-sentinel-template.yaml into namespace openshift
-
 
 ===== Add templates to current namespace
 Add templates to current namespace, i. e. into current project. Choose this alternative in order to create local templates.
@@ -204,7 +185,7 @@ $ oc create -f {LOCAL}/ose-artefacts/redis-sentinel-template.yaml -n ${PROJECT}
 ----
 
 First command: If not already cloned then clone GIT repository into local folder {LOCAL} +
-Second command: Aadd template redis-sentinel-template.yaml into namespace ${PROJECT}
+Second command: Add template redis-sentinel-template.yaml into namespace ${PROJECT}
 
 === Deployment
 
@@ -235,14 +216,11 @@ Set some environment variables (Placeholder) for convenience. These environment 
 ----
 export MAX_REDIS_NODES=3 // <1>
 export MAX_REDIS_SENTINELS=3 // <2>
+export PROJECT="<your_project>" // <3>
 ----
 <1> set number of nodes according to your needs
 <2> set number of sentinels according to your needs
-
-==== Create Project
-Create a project for Redis and its resources. Replace the placeholder $\{PROJECT} with your project where you want to deploy your Redis cluster.
-
-`$ oc new-project $\{PROJECT}`
+<3> set your project name
 
 ==== Service Accounts
 No extra service accounts are needed for deployment.
@@ -251,10 +229,10 @@ No extra service accounts are needed for deployment.
 Process the redis-node template. This automatically will create a deployment configurations, but neither scale nor deploy the nodes.
 ----
 $ for i in $(seq 1 $MAX_REDIS_NODES); do
- oc process openshift//redis-node \
- IMAGE_STREAM_NAME=redis_cluster_openshift \
+ oc process ${PROJECT}//redis-node \
+ IMAGE_STREAM_NAME=redis_cluster_oscp \
  IMAGE_STREAM_TAG=3.2 \
- IMAGE_STREAM_NAMESPACE=openshift \
+ IMAGE_STREAM_NAMESPACE=${PROJECT} \
  REDIS_NODE=$i \
  MEMORY_REQUEST=100Mi \
  CPU_REQUEST=100m \
@@ -275,8 +253,9 @@ Ignore the message `Error from server (AlreadyExists): persistentvolumeclaims "r
 ==== Create a Sentinel deployment configuration
 Process the redis-sentinel template. This automatically will create a deployment configuration.
 ----
-$ oc process openshift//redis-sentinel \
- IMAGE_STREAM_NAME=redis_cluster_openshift \
+$ oc process ${PROJECT}//redis-sentinel \
+ IMAGE_STREAM_NAME=redis_cluster_oscp \
+ IMAGE_STREAM_NAMESPACE=${PROJECT} \
  IMAGE_STREAM_TAG=3.2 \
  AUTOMATIC_IMAGE_TRIGGER=false \
  QUORUM=2 | oc create -f -
