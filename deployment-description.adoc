@@ -1,7 +1,3 @@
-ifndef::INCLUDE_MACROS[]
-include::../include-macros.adoc[]
-endif::INCLUDE_MACROS[]
-
 == Deployment description
 [[deployment-description]]
 === Overview
