@@ -1,0 +1,159 @@
+apiVersion: v1
+kind: Template
+labels:
+  template: redis-sentinel
+metadata:
+  annotations:
+    description: redis sentinel service
+    iconClass: icon-redis
+    tags: database,redis
+  creationTimestamp: null
+  name: redis-sentinel
+objects:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: sentinel-${CLUSTER_NAME}
+    labels:
+      app: redis-sentinel-${CLUSTER_NAME}
+      redis: support
+    annotations:
+      prometheus.io/module: tcp_connect
+      prometheus.io/port: '26379'
+      prometheus.io/probe: 'true'  
+  spec:
+    ports:
+      - name: 26379-tcp
+        protocol: TCP
+        port: 26379
+        targetPort: 26379
+    selector:
+      redis: sentinel-${CLUSTER_NAME}
+    type: ClusterIP
+    sessionAffinity: None
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: redis-sentinel-${CLUSTER_NAME}
+    labels:
+      redis: sentinel-${CLUSTER_NAME}
+  spec:
+    strategy:
+      type: Rolling
+      rollingParams:
+        updatePeriodSeconds: 1
+        intervalSeconds: 1
+        timeoutSeconds: 600
+        maxUnavailable: 25%
+        maxSurge: 25%
+      resources: {}
+    triggers:
+      - type: ImageChange
+        imageChangeParams:
+          automatic: ${{AUTOMATIC_IMAGE_TRIGGER}}
+          containerNames:
+            - redis-sentinel
+          from:
+            kind: ImageStreamTag
+            name: ${IMAGE_STREAM_NAME}:${IMAGE_STREAM_TAG}
+            namespace: ${IMAGE_STREAM_NAMESPACE}
+      - type: ConfigChange
+    replicas: 0
+    test: false
+    selector:
+      app: redis-sentinel-${CLUSTER_NAME}
+      deploymentconfig: redis-sentinel-${CLUSTER_NAME}
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: redis-sentinel-${CLUSTER_NAME}
+          deploymentconfig: redis-sentinel-${CLUSTER_NAME}
+          redis: sentinel-${CLUSTER_NAME}
+      spec:
+        imagePullSecrets:
+          - name: ${IMAGE_PULL_SECRET}
+        volumes:
+          - name: redis-data
+            emptyDir: {}
+        containers:
+          - name: redis-sentinel
+            image: ' '
+            ports:
+              - containerPort: 16379
+                protocol: TCP
+              - containerPort: 26379
+                protocol: TCP
+            env:
+              - name: POD_NAMESPACE
+                valueFrom:
+                  fieldRef:
+                    apiVersion: v1
+                    fieldPath: metadata.namespace
+              - name: SENTINEL
+                value: 'true'
+              - name: QUORUM
+                value: '${QUORUM}'
+              - name: CLUSTER_NAME
+                value: '${CLUSTER_NAME}'    
+            resources: {}
+            volumeMounts:
+              - name: redis-data
+                mountPath: /var/lib/redis/data
+            terminationMessagePath: /dev/termination-log
+            imagePullPolicy: Always
+            livenessProbe:
+              failureThreshold: 3
+              initialDelaySeconds: 30
+              periodSeconds: 10
+              successThreshold: 1
+              tcpSocket:
+                port: 26379
+              timeoutSeconds: 1
+            readinessProbe:
+              exec:
+                command:
+                - /bin/sh
+                - -i
+                - -c
+                - redis-cli -p 26379 ping
+              failureThreshold: 3
+              initialDelaySeconds: 5
+              periodSeconds: 10
+              successThreshold: 1
+              timeoutSeconds: 1
+        restartPolicy: Always
+        terminationGracePeriodSeconds: 30
+        dnsPolicy: ClusterFirst
+        securityContext: {}
+parameters:
+- description: Tag for the imagestream
+  name: IMAGE_STREAM_TAG
+  required: true
+  value: '3.2'
+- description: Name of the imagestream
+  name: IMAGE_STREAM_NAME
+  required: true
+  value: 'appagile-redis'
+- description: Namespace where the imagestream resides
+  name: IMAGE_STREAM_NAMESPACE
+  required: true
+  value: 'openshift'
+- description: "if true image will be deployed immediately, if false use 'oc rollout latest dc/redis-sentinel'"
+  name: AUTOMATIC_IMAGE_TRIGGER
+  required: true
+  value: 'false'
+- description: If the docker image is residing on a secured registry with access token, specify a docker pull secret
+  displayName: Pull Secret
+  required: true
+  value: appagile-central-registry
+  name: IMAGE_PULL_SECRET
+- description: Sentinel quorum
+  name: QUORUM
+  required: true
+  value: "2"
+- description: The Redis cluster name
+  name: CLUSTER_NAME
+  value: "cluster"
+  required: true
+

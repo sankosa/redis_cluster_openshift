@@ -266,7 +266,7 @@ oc secrets new-dockercfg registry-secret --docker-username='nouser' --docker-ser
 =====  Import image redis_cluster_openshift:3.2
 
 ----
-$ oc import-image redis_cluster_oscps:3.2 -n openshift --from=docker.io/sankosa/redis_cluster_oscp --confirm
+$ oc import-image redis_cluster_oscps:3.2 -n openshift --from=docker.io/sankosa/redis_cluster_oscp:3.2 --confirm
 
 $ oc tag --source='docker' docker.io/sankosa/redis_cluster_oscp:3.2 redis_cluster_oscps:3.2 --scheduled=true -n openshift
 ----
@@ -274,16 +274,16 @@ $ oc tag --source='docker' docker.io/sankosa/redis_cluster_oscp:3.2 redis_cluste
 The first command above creates an imagestream redis_cluster_oscps and import the metadata for image docker.io/sankosa/redis_cluster_oscp. +
 The second command add the --scheduled=true flag to have the destination tag be be refreshed (i.e., re-imported) periodically. The period is configured globally at system level. See link:https://docs.openshift.com/container-platform/3.11/dev_guide/managing_images.html#importing-tag-and-image-metadata[Importing Tag and Image Metadata] for more details
 
-=====  Import image {backup-image-name}:{backup-image-version}
+=====  backup-redis_cluster_openshift:1.0
 
-:PROJECT: openshift
-:IMAGESTREAM: {backup-image-name}
-:IMAGESTREAM_TAG: {backup-image-version}
-:IMAGE: appagile/{backup-image-name}
-:IMAGE_TAG: {backup-image-version}
+----
+$ oc import-image backup-redis_cluster_openshift:1.0 -n openshift --from=docker.io/sankosa/backup-redis_cluster_openshift:1.0 --confirm
 
-include::{macros-path-local}/deployment-macros/import-image-from-central-registry.adoc[]
+$ oc tag --source='docker' docker.io/sankosa/backup-redis_cluster_openshift:1.0 backup-redis_cluster_openshift:1.0 --scheduled=true -n openshift
+----
 
+The first command above creates an imagestream backup-redis_cluster_openshift and import the metadata for image docker.io/sankosa/backup-redis_cluster_openshift. +
+The second command add the --scheduled=true flag to have the destination tag be be refreshed (i.e., re-imported) periodically. The period is configured globally at system level. See link:https://docs.openshift.com/container-platform/3.11/dev_guide/managing_images.html#importing-tag-and-image-metadata[Importing Tag and Image Metadata] for more details
 
 ==== Add Templates
 If templates are not already available, add them to the project. If you want to make them available for all projects then add them to project openshift. That is the recommended location and assumed where dealing with templates.
@@ -291,21 +291,35 @@ If templates are not already available, add them to the project. If you want to 
 ===== Add templates to namespace openshift
 Add templates to namespace openshift in order to allow access to these templates from within all other projects.
 
-:GIT_REPOSISTORY: {git-home}
-:TEMPLATE_FILE: redis-node-template.yaml
-:TEMPLATE_NAMESPACE: openshift
-include::{macros-path-local}/deployment-macros/add-template-to-namespace.adoc[]
+*Command*
 
-:GIT_REPOSISTORY: {git-home}
-:TEMPLATE_FILE: redis-node-backup-template.yaml
-:TEMPLATE_NAMESPACE: openshift
-include::{macros-path-local}/deployment-macros/add-template-to-namespace.adoc[]
+----
+$ git clone https://github.com/sankosa/redis_cluster_openshift.git
+$ oc create -f {LOCAL}/ose-artefacts/redis-node-template.yaml -n openshift
+----
 
-:GIT_REPOSISTORY: {git-home}
-:TEMPLATE_FILE: redis-sentinel-template.yaml
-:TEMPLATE_NAMESPACE: openshift
-include::{macros-path-local}/deployment-macros/add-template-to-namespace.adoc[]
+First command: If not already cloned then clone GIT repository into local folder {LOCAL} +
+Second command: Add template redis-node-template.yaml into namespace openshift.
 
+*Command*
+
+----
+$ git clone https://github.com/sankosa/redis_cluster_openshift.git
+$ oc create -f {LOCAL}/ose-artefacts/redis-node-backup-template.yaml -n openshift
+----
+
+First dommand: If not already cloned then clone GIT repository into local folder {LOCAL} +
+Second command: Add template redis-node-backup-template.yaml into namespace openshift
+
+*Command*
+
+----
+$ git clone https://github.com/sankosa/redis_cluster_openshift.git
+$ oc create -f {LOCAL}/ose-artefacts/redis-sentinel-template.yaml -n openshift
+----
+
+First command: If not already cloned then clone GIT repository into local folder {LOCAL} +
+Second command: Add template redis-sentinel-template.yaml into namespace openshift
 
 
 ===== Add templates to current namespace

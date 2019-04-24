@@ -1,0 +1,331 @@
+apiVersion: v1
+kind: Template
+labels:
+  template: redis-node-backup
+metadata:
+  annotations:
+    description: redis database service
+    iconClass: icon-redis
+    tags: database,redis
+  creationTimestamp: null
+  name: redis-node-backup
+objects:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: redis-${CLUSTER_NAME}-node${REDIS_NODE}
+    labels:
+      app: redis-node
+      redis: support
+    annotations:
+      service.alpha.kubernetes.io/tolerate-unready-endpoints: 'true'
+      prometheus.io/path: /metrics
+      prometheus.io/port: '9121'
+      prometheus.io/scrape: 'true'
+  spec:
+    ports:
+      - name: 6379-tcp
+        protocol: TCP
+        port: 6379
+        targetPort: 6379
+      - name: 16379-tcp
+        protocol: TCP
+        port: 16379
+        targetPort: 16379
+      - name: 26379-tcp
+        protocol: TCP
+        port: 26379
+        targetPort: 26379
+      - name: prometheus
+        protocol: TCP
+        port: 9121
+        targetPort: 9121
+    selector:
+      deploymentconfig: redis-${CLUSTER_NAME}-node${REDIS_NODE}
+    type: ClusterIP
+    sessionAffinity: None
+- kind: PersistentVolumeClaim
+  apiVersion: v1
+  metadata:
+    name: redis-${CLUSTER_NAME}-node${REDIS_NODE}-claim
+    labels:
+      redis: support
+    annotations:
+      volume.beta.kubernetes.io/storage-class: "${STORAGE_CLASS}"
+  spec:
+    accessModes:
+    - ${STORAGE_ACCESS_MODE}
+    resources:
+      requests:
+        storage: "${PERSISTENT_VOLUME_CLAIM_SIZE}"
+- kind: PersistentVolumeClaim
+  apiVersion: v1
+  metadata:
+    name: redis-backupclaim
+    labels:
+      redis: support
+    annotations:
+      volume.beta.kubernetes.io/storage-class: "${BACKUP_STORAGE_CLASS}"
+  spec:
+    accessModes:
+    - ReadWriteMany
+    resources:
+      requests:
+        storage: "${BACKUP_PERSISTENT_VOLUME_CLAIM_SIZE}"
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: redis-${CLUSTER_NAME}-node${REDIS_NODE}
+    labels:
+      redis: ${CLUSTER_NAME}
+  spec:
+    strategy:
+      type: Recreate
+      recreateParams:
+        timeoutSeconds: 600
+      resources: {}
+    replicas: 0
+    test: false
+    selector:
+      app: redis-${CLUSTER_NAME}-node${REDIS_NODE}
+      deploymentconfig: redis-${CLUSTER_NAME}-node${REDIS_NODE}
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: redis-${CLUSTER_NAME}-node${REDIS_NODE}
+          deploymentconfig: redis-${CLUSTER_NAME}-node${REDIS_NODE}
+          redis: ${CLUSTER_NAME}
+      spec:
+        imagePullSecrets:
+          - name: ${IMAGE_PULL_SECRET}
+          - name: ${BACKUP_IMAGE_PULL_SECRET}
+        volumes:
+          - name: redis-data
+            persistentVolumeClaim:
+              claimName: redis-${CLUSTER_NAME}-node${REDIS_NODE}-claim
+          - name: redis-backup
+            persistentVolumeClaim:
+              claimName: redis-backupclaim
+        containers:
+          - name: redis-${CLUSTER_NAME}-node${REDIS_NODE}
+            image: ' '
+            ports:
+              - containerPort: 6379
+                protocol: TCP
+              - containerPort: 16379
+                protocol: TCP
+              - containerPort: 26379
+                protocol: TCP
+            env:
+              - name: POD_NAMESPACE
+                valueFrom:
+                  fieldRef:
+                    apiVersion: v1
+                    fieldPath: metadata.namespace
+              - name: RECOVERY_MODE
+                value: "${RECOVERY_MODE}"
+              - name: REDIS_NODE
+                value: "${REDIS_NODE}"
+              - name: CLUSTER_NAME
+                value: "${CLUSTER_NAME}"
+              - name: QUORUM
+                value: "${QUORUM}"
+              - name: DISABLE_AUTO_SAVE
+                value: "${DISABLE_AUTO_SAVE}"
+            volumeMounts:
+              - name: redis-data
+                mountPath: /var/lib/redis/data
+            resources:
+              requests:
+                memory: "${MEMORY_REQUEST}"
+                cpu: "${CPU_REQUEST}"
+            terminationMessagePath: /dev/termination-log
+            imagePullPolicy: Always
+            livenessProbe:
+              exec:
+                command:
+                  - /health_check.sh
+              initialDelaySeconds: 5
+              timeoutSeconds: 1
+              periodSeconds: 10
+              successThreshold: 1
+              failureThreshold: 3
+            readinessProbe:
+              tcpSocket:
+                port: 6379
+              initialDelaySeconds: 30
+              timeoutSeconds: 1
+              periodSeconds: 10
+              successThreshold: 1
+              failureThreshold: 3
+          - name: redis-${CLUSTER_NAME}-exporter${REDIS_NODE}
+            image: ' '
+            ports:
+              - containerPort: 9121
+                protocol: TCP
+            env:
+              - name: EXPORTER
+                value: 'true'
+            resources: {}
+            terminationMessagePath: /dev/termination-log
+            imagePullPolicy: Always
+            livenessProbe:
+              httpGet:
+                path: /metrics
+                port: 9121
+                scheme: HTTP
+              timeoutSeconds: 1
+              periodSeconds: 10
+              successThreshold: 1
+              failureThreshold: 3
+          - name: redis-backup${REDIS_NODE}
+            image: ' '
+            ports:
+            env:
+              - name: POD_NAMESPACE
+                valueFrom:
+                  fieldRef:
+                    apiVersion: v1
+                    fieldPath: metadata.namespace
+              - name: BACKUP_KEEP
+                value: ${BACKUP_KEEP}
+              - name: BACKUP_MINUTE
+                value: ${BACKUP_MINUTE}
+              - name: BACKUP_HOUR
+                value: ${BACKUP_HOUR}
+            volumeMounts:
+              - name: redis-data
+                mountPath: /var/lib/redis/data
+              - name: redis-backup
+                mountPath: /dbdata/backup
+            resources:
+              requests:
+                memory: "${MEMORY_REQUEST}"
+                cpu: "${CPU_REQUEST}"
+            terminationMessagePath: /dev/termination-log
+            imagePullPolicy: Always
+        restartPolicy: Always
+        terminationGracePeriodSeconds: 30
+        dnsPolicy: ClusterFirst
+        securityContext: {}
+    triggers:
+    - type: ImageChange
+      imageChangeParams:
+        automatic: ${{AUTOMATIC_IMAGE_TRIGGER}}
+        containerNames:
+        - redis-${CLUSTER_NAME}-node${REDIS_NODE}
+        - redis-${CLUSTER_NAME}-exporter${REDIS_NODE}
+        from:
+          kind: ImageStreamTag
+          name: ${IMAGE_STREAM_NAME}:${IMAGE_STREAM_TAG}
+          namespace: ${IMAGE_STREAM_NAMESPACE}
+    - type: ImageChange
+      imageChangeParams:
+        automatic: ${{AUTOMATIC_IMAGE_TRIGGER}}
+        containerNames:
+        - redis-backup${REDIS_NODE}
+        from:
+          kind: ImageStreamTag
+          name: ${BACKUP_IMAGE_STREAM_NAME}:${BACKUP_IMAGE_STREAM_TAG}
+          namespace: ${BACKUP_IMAGE_STREAM_NAMESPACE}
+    - type: ConfigChange
+parameters:
+- description: Tag for the imagestream
+  name: IMAGE_STREAM_TAG
+  required: true
+  value: "3.2"
+- description: Name of the imagestream
+  name: IMAGE_STREAM_NAME
+  required: true
+  value: "appagile-redis"
+- description: Namespace where the imagestream resides
+  name: IMAGE_STREAM_NAMESPACE
+  required: true
+  value: "openshift"
+- description: If the docker image is residing on a secured registry with access token, specify a docker pull secret
+  displayName: Pull Secret
+  required: true
+  value: "appagile-central-registry"
+  name: IMAGE_PULL_SECRET
+- description: "if true image will be deployed immediately, if false use 'oc rollout latest dc/redis-node-${REDIS_NODE}'"
+  name: AUTOMATIC_IMAGE_TRIGGER
+  required: true
+  value: "false"
+- description: Node Name must be integer
+  name: REDIS_NODE
+  required: true
+  value: "1"
+- description: The amout of memory required for the container to run
+  name: MEMORY_REQUEST
+  value: 2Gi
+  required: true
+- description: The minimum amount of CPU the container may consume
+  name: CPU_REQUEST
+  value: 2000m
+  required: true
+- description: Size of the required PULL_SECRETt data storage
+  name: PERSISTENT_VOLUME_CLAIM_SIZE
+  value: 2Gi
+  required: true
+- description: To start the Redis-Container in Recovery Mode, set this parameter to true.
+  name: RECOVERY_MODE
+  value: "false"
+  required: false
+- description: The storage access mode to be used
+  name: STORAGE_ACCESS_MODE
+  value: "ReadWriteOnce"
+  required: false
+- description: The storage class to be used
+  name: STORAGE_CLASS
+  value: ""
+  required: false
+- description: The Redis cluster name
+  name: CLUSTER_NAME
+  value: "cluster"
+  required: true
+- description: Sentinel quorum
+  name: QUORUM
+  required: true
+  value: "2"
+- description: Disable autosave (automatically snapshotting)
+  name: DISABLE_AUTO_SAVE
+  required: true
+  value: "false"
+- description: Tag for the backup imagestream
+  name: BACKUP_IMAGE_STREAM_TAG
+  required: true
+  value: "3.2"
+- description: Name of the backup imagestream
+  name: BACKUP_IMAGE_STREAM_NAME
+  required: true
+  value: "appagile-backup-redis"
+- description: Namespace where the backup imagestream resides
+  name: BACKUP_IMAGE_STREAM_NAMESPACE
+  required: true
+  value: "openshift"
+- description: If the backup docker image is residing on a secured registry with access token, specify a docker pull secret
+  displayName: Backup Pull Secret
+  required: true
+  value: "appagile-central-registry"
+  name: BACKUP_IMAGE_PULL_SECRET
+- description: Size of the required data storage for backups
+  name: BACKUP_PERSISTENT_VOLUME_CLAIM_SIZE
+  value: 2Gi
+  required: true
+- description: The storage class to be used for backups
+  name: BACKUP_STORAGE_CLASS
+  value: ""
+  required: false
+- description: "Number of Backups should be kept in backup. Example: A value of 5 means: The last 5 backups are kept in storage. All others will be deleted."
+  name: BACKUP_KEEP
+  value: "3"
+  required: true
+- description: "Hour in cron format. Examples: * - every hour, */2 - every 2 hours, 2 - every day at 2 o'clock, 6,12,18,0 - every day at 6, 12, 18, 0 o'clock."
+  name: BACKUP_HOUR
+  value: "0"
+  required: true
+- description: "Minute in cron format. Examples: * - every minute, */5 - every five minutes, 12,42 - fire at 12 min and 42 min past configured hours."
+  name: BACKUP_MINUTE
+  value: "10"
+  required: true
