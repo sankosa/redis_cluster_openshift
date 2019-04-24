@@ -1,7 +1,7 @@
 == Deployment description
 [[deployment-description]]
 === Overview
-AppAgile PaaS provides a container image for running Redis. Redis is an advanced key-value store. It is often referred to as a data structure server since keys can contain strings, hashes, lists, sets and sorted sets. You can run atomic operations on these types, like appending to a string; incrementing the value in a hash; pushing to a list; computing set intersection, union and difference; or getting the member with highest ranking in a sorted set. In order to achieve its outstanding performance, Redis works with an in-memory dataset. Depending on your use case, you can persist it either by dumping the dataset to disk every once in a while, or by appending each command to a log.
+Redis is an advanced key-value store. It is often referred to as a data structure server since keys can contain strings, hashes, lists, sets and sorted sets. You can run atomic operations on these types, like appending to a string; incrementing the value in a hash; pushing to a list; computing set intersection, union and difference; or getting the member with highest ranking in a sorted set. In order to achieve its outstanding performance, Redis works with an in-memory dataset. Depending on your use case, you can persist it either by dumping the dataset to disk every once in a while, or by appending each command to a log.
 
 
 The following deplyoment description depicts a setup of a redis cluster consisting of
@@ -14,13 +14,12 @@ The following deplyoment description depicts a setup of a redis cluster consisti
 ==== Prerequisites
 Several prerequisites have to be met to deploy a cluster successfully.
 
-* Token ${ACCESS_TOKEN_IMAGE_REPOSITORY} to pull image {central-registry-home}/appagile/appagile-redis:3.2 and central-registry-home}/appagile-redis-backup:1.0.0 is available. (for additional information on how to acquire the necessary secrets, please visit: https://seu30.gdc-bln03.t-systems.com/confluence/display/APPAGILE/Acquiring+Image+Pull+secret+token+for+Image+Repository)
-* Access to git-repository {git-home} in order to pull templates is needed if templates have not been installed already.
-* Make sure that the necessary PV shares are available on the NFS server according to the Customer needs before deployment. (each Redis Sentinel and Redis Worker requires a PV. For the Backup instance additional PV is required)
+* Access to git-repository https://github.com/sankosa/redis_cluster_openshift in order to pull templates is needed if templates have not been installed already.
+* Make sure that the necessary PVs are available according to the needs before deployment. (each Redis Sentinel and Redis Worker requires a PV. For the Backup instance additional PV is required)
 
 ==== Version
-* appagile-redis:3.2
-* appagile-backup-redis:1.0.0
+* redis_cluster_openshift:3.2
+* backup-redis_cluster_openshift:1.0.0
 
 ==== Persistent Storage
 The deployment supports persistent storage.
@@ -47,7 +46,7 @@ A template to create a deployment for a sentinel.
 
 |IMAGE_STREAM_NAME
 |Name of the imagestream
-|appagile-redis
+|redis_cluster_openshift
 
 |IMAGE_STREAM_NAMESPACE
 |Namespace where the imagestream resides
@@ -55,7 +54,7 @@ A template to create a deployment for a sentinel.
 
 |IMAGE_PULL_SECRET
 |If the docker image is residing on a secured registry with access token, specify a docker pull secret
-|appagile-central-registry
+|registry-secret
 
 |AUTOMATIC_IMAGE_TRIGGER
 |if true image will be deployed immediately, if false use "oc rollout latest dc/redis-node-<redis-node>"
@@ -114,7 +113,7 @@ A template to create a deployment for a sentinel.
 
 |IMAGE_STREAM_NAME
 |Name of the imagestream
-|appagile-redis
+|redis_cluster_openshift
 
 |IMAGE_STREAM_NAMESPACE
 |Namespace where the imagestream resides
@@ -122,7 +121,7 @@ A template to create a deployment for a sentinel.
 
 |IMAGE_PULL_SECRET
 |If the docker image is residing on a secured registry with access token, specify a docker pull secret
-|appagile-central-registry
+|registry-secret
 
 |AUTOMATIC_IMAGE_TRIGGER
 |if true image will be deployed immediately, if false use "oc rollout latest dc/redis-node-<redis-node>"
@@ -170,7 +169,7 @@ A template to create a deployment for a sentinel.
 
 |BACKUP_IMAGE_STREAM_NAME
 |Name of the backup imagestream
-|appagile-backup-redis
+|backup-redis_cluster_openshift
 
 |BACKUP_IMAGE_STREAM_TAG
 |Tag for the backup imagestream
@@ -182,7 +181,7 @@ A template to create a deployment for a sentinel.
 
 |BACKUP_IMAGE_PULL_SECRET
 |If the backup docker image is residing on a secured registry with access token, specify a docker pull secret
-|appagile-central-registry
+|registry-secret
 
 |BACKUP_PERSISTENT_VOLUME_CLAIM_SIZE
 |Size of the required data storage for backups
@@ -214,7 +213,7 @@ A template to create a deployment for a sentinel.
 
 |IMAGE_STREAM_NAME
 |Name of the imagestream
-|appagile-redis
+|redis_cluster_openshift
 
 |IMAGE_STREAM_TAG
 |Tag for the imagestream
@@ -230,7 +229,7 @@ A template to create a deployment for a sentinel.
 
 |IMAGE_PULL_SECRET
 |If the docker image is residing on a secured registry with access token, specify a docker pull secret
-|appagile-central-registry
+|registry-secret
 
 |PEER_SERVICE
 |Service name
@@ -257,9 +256,9 @@ If you want to deploy a cluster with backup side container (using the template r
 If these imagestreams are not already available, then create it with following command sequences.
 
 ==== Secret to import images
-A secret to import the image from AppAgiles central docker repository is needed.
+In case if a secret to import the image from a docker repository is needed.
 
-:SECRET_NAME: appagile-central-registry
+:SECRET_NAME: registry-secret
 :TOKEN: $\{ACCESS_TOKEN_IMAGE_REPOSITORY}
 :PROJECT: openshift
 include::{macros-path-local}/deployment-macros/create-secret-for-central-registry.adoc[]
@@ -370,12 +369,12 @@ Create a project for Redis and its resources. Replace the placeholder $\{PROJECT
 
 ==== Secret to pull images
 
-A secret to pull images from AppAgiles central docker repository is needed.
+In case if a secret to pull images from a docker repository is needed.
 
-Either create a secret with the provided token or use secret appagile-central-registry if provided in your project by default.
-To create the secret appagile-central-registry if not provided in your project, execute the following commands.
+Either create a secret with the provided token or use secret registry-secret if provided in your project by default.
+To create the secret registry-secret if not provided in your project, execute the following commands.
 
-:SECRET_NAME: appagile-central-registry
+:SECRET_NAME: registry-secret
 :TOKEN: $\{ACCESS_TOKEN_IMAGE_REPOSITORY}
 :PROJECT: $\{PROJECT}
 include::{macros-path-local}/deployment-macros/create-secret-for-central-registry.adoc[]
@@ -388,10 +387,10 @@ Process the redis-node-backup template. This automatically will create a deploym
 ----
 $ for i in $(seq 1 $MAX_REDIS_NODES); do
  oc process openshift//redis-node-backup \
- IMAGE_STREAM_NAME=appagile-redis \
+ IMAGE_STREAM_NAME=redis_cluster_openshift \
  IMAGE_STREAM_TAG=3.2 \
  IMAGE_STREAM_NAMESPACE=openshift \
- IMAGE_PULL_SECRET=appagile-central-registry \
+ IMAGE_PULL_SECRET=registry-secret \
  REDIS_NODE=$i \
  MEMORY_REQUEST=100Mi \
  CPU_REQUEST=100m \
@@ -399,11 +398,11 @@ $ for i in $(seq 1 $MAX_REDIS_NODES); do
  BACKUP_PERSISTENT_VOLUME_CLAIM_SIZE=200Mi \
  RECOVERY_MODE=false \
  BACKUP_IMAGE_STREAM_TAG=1.0.0 \
- BACKUP_IMAGE_STREAM_NAME=appagile-backup-redis \
+ BACKUP_IMAGE_STREAM_NAME=backup-redis_cluster_openshift \
  BACKUP_IMAGE_STREAM_NAMESPACE=openshift \
  QUORUM=2 \
  DISABLE_AUTO_SAVE=true \
- BACKUP_IMAGE_PULL_SECRET=appagile-central-registry \
+ BACKUP_IMAGE_PULL_SECRET=registry-secret \
  BACKUP_HOUR='*' \
  BACKUP_MINUTE='*/5' \
  BACKUP_KEEP=3 \
@@ -420,7 +419,7 @@ Ignore the message `Error from server (AlreadyExists): persistentvolumeclaims "r
 Process the redis-sentinel template. This automatically will create a deployment configuration.
 ----
 $ oc process openshift//redis-sentinel \
- IMAGE_STREAM_NAME=appagile-redis \
+ IMAGE_STREAM_NAME=redis_cluster_openshift \
  IMAGE_STREAM_TAG=3.2 \
  AUTOMATIC_IMAGE_TRIGGER=false \
  QUORUM=2 | oc create -f -
