@@ -71,8 +71,6 @@ objects:
           deploymentconfig: redis-sentinel-${CLUSTER_NAME}
           redis: sentinel-${CLUSTER_NAME}
       spec:
-        imagePullSecrets:
-          - name: ${IMAGE_PULL_SECRET}
         volumes:
           - name: redis-data
             emptyDir: {}
@@ -134,7 +132,7 @@ parameters:
 - description: Name of the imagestream
   name: IMAGE_STREAM_NAME
   required: true
-  value: 'appagile-redis'
+  value: 'redis_cluster_openshift'
 - description: Namespace where the imagestream resides
   name: IMAGE_STREAM_NAMESPACE
   required: true
@@ -143,11 +141,6 @@ parameters:
   name: AUTOMATIC_IMAGE_TRIGGER
   required: true
   value: 'false'
-- description: If the docker image is residing on a secured registry with access token, specify a docker pull secret
-  displayName: Pull Secret
-  required: true
-  value: appagile-central-registry
-  name: IMAGE_PULL_SECRET
 - description: Sentinel quorum
   name: QUORUM
   required: true

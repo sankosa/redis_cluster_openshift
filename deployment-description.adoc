@@ -15,11 +15,10 @@ The following deplyoment description depicts a setup of a redis cluster consisti
 Several prerequisites have to be met to deploy a cluster successfully.
 
 * Access to git-repository https://github.com/sankosa/redis_cluster_openshift in order to pull templates is needed if templates have not been installed already.
-* Make sure that the necessary PVs are available according to the needs before deployment. (each Redis Sentinel and Redis Worker requires a PV. For the Backup instance additional PV is required)
+* Make sure that the necessary PVs are available according to the needs before deployment. (each Redis Sentinel and Redis Worker requires a PV.
 
 ==== Version
 * redis_cluster_openshift:3.2
-* backup-redis_cluster_openshift:1.0
 
 ==== Persistent Storage
 The deployment supports persistent storage.
@@ -31,8 +30,6 @@ Supports SCC "restricted".
 [[template-parameters]]
 * redis-node +
 A Template to create a deployment for a redis node, i.e. master and node.
-* redis-node-backup +
-A template to create a deployment for a redis with backup functionlity.
 * redis-sentinel +
 A template to create a deployment for a sentinel.
 
@@ -103,110 +100,6 @@ A template to create a deployment for a sentinel.
 
 |===
 
-.Table Parameters of template redis-node-backup
-|===
-|Parameter |Description |Default
-
-|IMAGE_STREAM_TAG
-|Tag for the imagestream to use
-|3.2
-
-|IMAGE_STREAM_NAME
-|Name of the imagestream
-|redis_cluster_openshift
-
-|IMAGE_STREAM_NAMESPACE
-|Namespace where the imagestream resides
-|openshift
-
-|IMAGE_PULL_SECRET
-|If the docker image is residing on a secured registry with access token, specify a docker pull secret
-|registry-secret
-
-|AUTOMATIC_IMAGE_TRIGGER
-|if true image will be deployed immediately, if false use "oc rollout latest dc/redis-node-<redis-node>"
-|false
-
-|REDIS_NODE
-|Node Name, e.g. 1 or 2, ...
-|1
-
-|MEMORY_REQUEST
-|The amout of memory required for the container to run.
-|2Gi
-
-|CPU_REQUEST
-|2000m
-|The minimum amount of CPU the container may consume
-
-|PERSISTENT_VOLUME_CLAIM_SIZE
-|Size of the required persistent data storage
-|2Gi
-
-|RECOVERY_MODE
-|To start the Redis-Container in Recovery Mode, set this parameter to true.
-|false
-
-|STORAGE_ACCESS_MODE
-|The storage access mode to be used
-|ReadWriteOnce
-
-|STORAGE_CLASS
-|The storage class to be used.
-|-
-
-|CLUSTER_NAME
-|The Redis cluster name.
-|"cluster"
-
-|QUORUM
-|Sentinel Quorum
-|2
-
-|DISABLE_AUTO_SAVE
-|Disable autosave (automatically snapshotting)
-|false
-
-|BACKUP_IMAGE_STREAM_NAME
-|Name of the backup imagestream
-|backup-redis_cluster_openshift
-
-|BACKUP_IMAGE_STREAM_TAG
-|Tag for the backup imagestream
-|3.2
-
-|BACKUP_IMAGE_STREAM_NAMESPACE
-|Namespace where the backup imagestream resides
-|openshift
-
-|BACKUP_IMAGE_PULL_SECRET
-|If the backup docker image is residing on a secured registry with access token, specify a docker pull secret
-|registry-secret
-
-|BACKUP_PERSISTENT_VOLUME_CLAIM_SIZE
-|Size of the required data storage for backups
-|2Gi
-
-|BACKUP_STORAGE_CLASS
-|The storage class to be used for backups
-|-
-
-|BACKUP_KEEP
-|Number of Backups should be kept in backup. Example: A value of 5 means: The last 5 backups are kept in storage. All others will be deleted.
-|3
-
-|BACKUP_HOUR
-|Hour in cron format. Examples: * - every hour, */2 - every 2 hours, 2 - every day at 2 o'clock, 6,12,18,0 - every day at 6, 12, 18, 0 o'clock.
-|0
-
-|BACKUP_MINUTE
-|Minute in cron format. Examples: * - every minute, */5 - every five minutes, 12,42 - fire at 12 min and 42 min past configured hours.
-|10
-
-|===
-
-
-
 .Table Parameters of template redis-sentinel
 |===
 |Parameter |Description |Default
@@ -250,18 +143,7 @@ The deployment assumes that  the following imagestreams are in place.
 * redis_cluster_openshift:3.2 +
 This image provides the redis node. It acts as a master, a slave and a sentinel.
 
-* backup-redis_cluster_openshift:1.0 +
-If you want to deploy a cluster with backup side container (using the template redis-node-backup) then make sure that this image is available and provided as an imagestream.
-
 If these imagestreams are not already available, then create it with following command sequences.
-
-==== Secret to import images
-In case if a secret to import the image from a docker repository is needed. +
-Example:
-
-----
-oc secrets new-dockercfg registry-secret --docker-username='nouser' --docker-server='<your_docker_registry_URL>' --docker-email='none@none' --docker-password='<your_token_to_your_regisgtry>' -n openshift
-----
 
 =====  Import image redis_cluster_openshift:3.2
 
@@ -272,17 +154,6 @@ $ oc tag --source='docker' docker.io/sankosa/redis_cluster_oscp:3.2 redis_cluste
 ----
 
 The first command above creates an imagestream redis_cluster_oscps and import the metadata for image docker.io/sankosa/redis_cluster_oscp. +
-The second command add the --scheduled=true flag to have the destination tag be be refreshed (i.e., re-imported) periodically. The period is configured globally at system level. See link:https://docs.openshift.com/container-platform/3.11/dev_guide/managing_images.html#importing-tag-and-image-metadata[Importing Tag and Image Metadata] for more details
-
-===== Import backup-redis_cluster_openshift:1.0
-
-----
-$ oc import-image backup-redis_cluster_openshift:1.0 -n openshift --from=docker.io/sankosa/backup-redis_cluster_openshift:1.0 --confirm
-
-$ oc tag --source='docker' docker.io/sankosa/backup-redis_cluster_openshift:1.0 backup-redis_cluster_openshift:1.0 --scheduled=true -n openshift
-----
-
-The first command above creates an imagestream backup-redis_cluster_openshift and import the metadata for image docker.io/sankosa/backup-redis_cluster_openshift. +
 The second command add the --scheduled=true flag to have the destination tag be be refreshed (i.e., re-imported) periodically. The period is configured globally at system level. See link:https://docs.openshift.com/container-platform/3.11/dev_guide/managing_images.html#importing-tag-and-image-metadata[Importing Tag and Image Metadata] for more details
 
 ==== Add Templates
@@ -300,16 +171,6 @@ $ oc create -f {LOCAL}/ose-artefacts/redis-node-template.yaml -n openshift
 
 First command: If not already cloned then clone GIT repository into local folder {LOCAL} +
 Second command: Add template redis-node-template.yaml into namespace openshift.
-
-*Command*
-
-----
-$ git clone https://github.com/sankosa/redis_cluster_openshift.git
-$ oc create -f {LOCAL}/ose-artefacts/redis-node-backup-template.yaml -n openshift
-----
-
-First dommand: If not already cloned then clone GIT repository into local folder {LOCAL} +
-Second command: Add template redis-node-backup-template.yaml into namespace openshift
 
 *Command*
 
@@ -339,16 +200,6 @@ Second command: Add template redis-node-template.yaml into namespace ${PROJECT}
 
 ----
 $ git clone https://github.com/sankosa/redis_cluster_openshift.git
-$ oc create -f {LOCAL}/ose-artefacts/redis-node-backup-template.yaml -n ${PROJECT}
-----
-
-First command: If not already cloned then clone GIT repository into local folder {LOCAL} +
-Second command: Add template redis-node-backup-template.yaml into namespace ${PROJECT}
-
-*Command*
-
-----
-$ git clone https://github.com/sankosa/redis_cluster_openshift.git
 $ oc create -f {LOCAL}/ose-artefacts/redis-sentinel-template.yaml -n ${PROJECT}
 ----
 
@@ -358,8 +209,6 @@ Second command: Aadd template redis-sentinel-template.yaml into namespace ${PROJ
 === Deployment
 
 The following subsections show the procedure to deploy a redis cluster consisting of 1 master, two slaves and 3 sentinels. This deployment further more consists of the service to backup the data with the backup side containers.
-
-NOTE: If you want to deploy a redis cluster without backup side container follow the steps below but ignore the parameters for backup and use the template redis-node instead of redis-node-backup.
 
 Use appropriate values for parameters to configure your redis cluster properly, see <<template-parameters, parameter>> for meanings.
 
@@ -402,31 +251,23 @@ No extra service accounts are needed for deployment.
 Process the redis-node template. This automatically will create a deployment configurations, but neither scale nor deploy the nodes.
 ----
 $ for i in $(seq 1 $MAX_REDIS_NODES); do
- oc process openshift//redis-node-backup \
+ oc process openshift//redis-node \
  IMAGE_STREAM_NAME=redis_cluster_openshift \
  IMAGE_STREAM_TAG=3.2 \
  IMAGE_STREAM_NAMESPACE=openshift \
- IMAGE_PULL_SECRET=registry-secret \
  REDIS_NODE=$i \
  MEMORY_REQUEST=100Mi \
  CPU_REQUEST=100m \
  PERSISTENT_VOLUME_CLAIM_SIZE=100Mi \
- BACKUP_PERSISTENT_VOLUME_CLAIM_SIZE=200Mi \
  RECOVERY_MODE=false \
- BACKUP_IMAGE_STREAM_TAG=1.0.0 \
- BACKUP_IMAGE_STREAM_NAME=backup-redis_cluster_openshift \
- BACKUP_IMAGE_STREAM_NAMESPACE=openshift \
+ STORAGE_CLASS=cns \
  QUORUM=2 \
  DISABLE_AUTO_SAVE=true \
- BACKUP_IMAGE_PULL_SECRET=registry-secret \
- BACKUP_HOUR='*' \
- BACKUP_MINUTE='*/5' \
- BACKUP_KEEP=3 \
  | oc create -f -
 done
 ----
 
-NOTE:: if you are deploying the images in one of the OTC environment, the STORAGE_CLASS option is also mandatory!
+NOTE: if you are deploying the images in one of the OTC environment, the STORAGE_CLASS option is also mandatory!
 
 Ignore the message `Error from server (AlreadyExists): persistentvolumeclaims "redis-backupclaim" already exists`
 
