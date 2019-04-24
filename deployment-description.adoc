@@ -274,7 +274,7 @@ $ oc tag --source='docker' docker.io/sankosa/redis_cluster_oscp:3.2 redis_cluste
 The first command above creates an imagestream redis_cluster_oscps and import the metadata for image docker.io/sankosa/redis_cluster_oscp. +
 The second command add the --scheduled=true flag to have the destination tag be be refreshed (i.e., re-imported) periodically. The period is configured globally at system level. See link:https://docs.openshift.com/container-platform/3.11/dev_guide/managing_images.html#importing-tag-and-image-metadata[Importing Tag and Image Metadata] for more details
 
-=====  backup-redis_cluster_openshift:1.0
+===== Import backup-redis_cluster_openshift:1.0
 
 ----
 $ oc import-image backup-redis_cluster_openshift:1.0 -n openshift --from=docker.io/sankosa/backup-redis_cluster_openshift:1.0 --confirm
@@ -325,27 +325,41 @@ Second command: Add template redis-sentinel-template.yaml into namespace openshi
 ===== Add templates to current namespace
 Add templates to current namespace, i. e. into current project. Choose this alternative in order to create local templates.
 
-:GIT_REPOSISTORY: {git-home}
-:TEMPLATE_FILE: redis-node-template.yaml
-:TEMPLATE_NAMESPACE: $\{PROJECT}
-include::{macros-path-local}/deployment-macros/add-template-to-namespace.adoc[]
+*Command*
 
-:GIT_REPOSISTORY: {git-home}
-:TEMPLATE_FILE: redis-node-backup-template.yaml
-:TEMPLATE_NAMESPACE: $\{PROJECT}
-include::{macros-path-local}/deployment-macros/add-template-to-namespace.adoc[]
+----
+$ git clone https://github.com/sankosa/redis_cluster_openshift.git
+$ oc create -f {LOCAL}/ose-artefacts/redis-node-template.yaml -n ${PROJECT}
+----
 
-:GIT_REPOSISTORY: {git-home}
-:TEMPLATE_FILE: redis-sentinel-template.yaml
-:TEMPLATE_NAMESPACE: $\{PROJECT}
-include::{macros-path-local}/deployment-macros/add-template-to-namespace.adoc[]
+First command: If not already cloned then clone GIT repository into local folder {LOCAL}
+Second command: Add template redis-node-template.yaml into namespace ${PROJECT}
 
+*Command*
+
+----
+$ git clone https://github.com/sankosa/redis_cluster_openshift.git
+$ oc create -f {LOCAL}/ose-artefacts/redis-node-backup-template.yaml -n ${PROJECT}
+----
+
+First command: If not already cloned then clone GIT repository into local folder {LOCAL} +
+Second command: Add template redis-node-backup-template.yaml into namespace ${PROJECT}
+
+*Command*
+
+----
+$ git clone https://github.com/sankosa/redis_cluster_openshift.git
+$ oc create -f {LOCAL}/ose-artefacts/redis-sentinel-template.yaml -n ${PROJECT}
+----
+
+First command: If not already cloned then clone GIT repository into local folder {LOCAL} +
+Second command: Aadd template redis-sentinel-template.yaml into namespace ${PROJECT}
 
 === Deployment
 
-The following subsections show the procedure to deploy a redis cluster consisting of 1 master, two slaves and 3 sentinels, see <<basic-deployment-redis, basic deployment>>. This deployment further more consists of the service to backup the data with the backup side containers.
+The following subsections show the procedure to deploy a redis cluster consisting of 1 master, two slaves and 3 sentinels. This deployment further more consists of the service to backup the data with the backup side containers.
 
-:NOTE: If you want to deploy a redis cluster without backup side container follow the steps below but ignore the parameters for backup and use the template redis-node instead of redis-node-backup.
+NOTE: If you want to deploy a redis cluster without backup side container follow the steps below but ignore the parameters for backup and use the template redis-node instead of redis-node-backup.
 
 Use appropriate values for parameters to configure your redis cluster properly, see <<template-parameters, parameter>> for meanings.
 
@@ -381,24 +395,11 @@ Create a project for Redis and its resources. Replace the placeholder $\{PROJECT
 
 `$ oc new-project $\{PROJECT}`
 
-
-==== Secret to pull images
-
-In case if a secret to pull images from a docker repository is needed.
-
-Either create a secret with the provided token or use secret registry-secret if provided in your project by default.
-To create the secret registry-secret if not provided in your project, execute the following commands.
-
-:SECRET_NAME: registry-secret
-:TOKEN: $\{ACCESS_TOKEN_IMAGE_REPOSITORY}
-:PROJECT: $\{PROJECT}
-include::{macros-path-local}/deployment-macros/create-secret-for-central-registry.adoc[]
-
 ==== Service Accounts
 No extra service accounts are needed for deployment.
 
 ==== Create three Redis node deployment configurations, services, etc.
-Process the redis-node-backup template. This automatically will create a deployment configurations, but neither scale nor deploy the nodes.
+Process the redis-node template. This automatically will create a deployment configurations, but neither scale nor deploy the nodes.
 ----
 $ for i in $(seq 1 $MAX_REDIS_NODES); do
  oc process openshift//redis-node-backup \
@@ -425,7 +426,7 @@ $ for i in $(seq 1 $MAX_REDIS_NODES); do
 done
 ----
 
-Note: if you are deploying the images in one of the OTC environment, the STORAGE_CLASS=otc-cns and BACKUP_STORAGE_CLASS=otc-cns options are also mandatory!
+NOTE:: if you are deploying the images in one of the OTC environment, the STORAGE_CLASS option is also mandatory!
 
 Ignore the message `Error from server (AlreadyExists): persistentvolumeclaims "redis-backupclaim" already exists`
 
