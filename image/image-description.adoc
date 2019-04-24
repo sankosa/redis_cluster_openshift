@@ -1,0 +1,32 @@
+== Image description
+
+=== Overview
+- Docker image for https://redis.io/[redis], an in-memory database
+
+=== Base image
+- registry.access.redhat.com/rhscl/redis-32-rhel7:3.2
+
+=== Image usage
+- Base image for Redis images. It supports redis sentinel setup
+
+=== Run Scenario
+- For usage on Openshift and plain Docker
+
+=== Included packages
+- Redis 3.2
+
+=== Licenses
+- No license needed
+- Redis is released under https://redis.io/topics/license[Three clause BSD license]
+
+=== Docker build
+- Standard build
+
+=== Runtime Environment Variables
+- N/A
+
+=== Grafana dashboard
+- Yes link:redis.json[]
+
+=== Prometheus metrics
+- Yes

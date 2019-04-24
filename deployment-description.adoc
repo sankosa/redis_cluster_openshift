@@ -1,0 +1,569 @@
+ifndef::INCLUDE_MACROS[]
+include::../include-macros.adoc[]
+endif::INCLUDE_MACROS[]
+
+== Deployment description
+[[deployment-description]]
+=== Overview
+AppAgile PaaS provides a container image for running Redis. Redis is an advanced key-value store. It is often referred to as a data structure server since keys can contain strings, hashes, lists, sets and sorted sets. You can run atomic operations on these types, like appending to a string; incrementing the value in a hash; pushing to a list; computing set intersection, union and difference; or getting the member with highest ranking in a sorted set. In order to achieve its outstanding performance, Redis works with an in-memory dataset. Depending on your use case, you can persist it either by dumping the dataset to disk every once in a while, or by appending each command to a log.
+
+
+The following deplyoment description depicts a setup of a redis cluster consisting of
+
+* one redis master,
+* two more redis slaves,
+* and a set of three sentinels.
+
+Description of redis and sentinel nodes can be found in the documentation <<operational-description, Operational Description>>.
+
+==== Deployment Architecure
+A deployment of a basic redis cluster consisting of 3 nodes (one master and two slaves) and 3 sentinels looks like
+[[basic-deployment-redis]]
+image::basic-deployment-redis.png[Basic Deployment Architecure]
+
+
+This diagram shows a deployment with backup side container to provide backup up data on a regular basis. This container stores backups on a dedicated storage.
+
+The monitoring system Prometheus and the client are out of scope of this documentation.
+
+
+
+CAUTION: The client has to have access to the SDN, i.e. redis clients have to run on the same platform (Openshift) where the cluster resides. This is because of the sentinel is providing local addresses to the client, when clients ask for master to write data.
+
+==== Prerequisites
+Several prerequisites have to be met to deploy a cluster successfully.
+
+* Token ${ACCESS_TOKEN_IMAGE_REPOSITORY} to pull image {central-registry-home}/appagile/appagile-redis:3.2 and central-registry-home}/appagile-redis-backup:1.0.0 is available. (for additional information on how to acquire the necessary secrets, please visit: https://seu30.gdc-bln03.t-systems.com/confluence/display/APPAGILE/Acquiring+Image+Pull+secret+token+for+Image+Repository)
+* Access to git-repository {git-home} in order to pull templates is needed if templates have not been installed already.
+* Make sure that the necessary PV shares are available on the NFS server according to the Customer needs before deployment. (each Redis Sentinel and Redis Worker requires a PV. For the Backup instance additional PV is required)
+
+==== Version
+* appagile-redis:3.2
+* appagile-backup-redis:1.0.0
+
+==== Persistent Storage
+The deployment supports persistent storage.
+
+==== Security Settings
+Supports SCC "restricted".
+
+==== Templates
+[[template-parameters]]
+* redis-node +
+A Template to create a deployment for a redis node, i.e. master and node.
+* redis-node-backup +
+A template to create a deployment for a redis with backup functionlity.
+* redis-sentinel +
+A template to create a deployment for a sentinel.
+
+.Table Parameters of template redis-node
+|===
+|Parameter |Description |Default
+
+|IMAGE_STREAM_TAG
+|Tag for the imagestream to use
+|3.2
+
+|IMAGE_STREAM_NAME
+|Name of the imagestream
+|appagile-redis
+
+|IMAGE_STREAM_NAMESPACE
+|Namespace where the imagestream resides
+|openshift
+
+|IMAGE_PULL_SECRET
+|If the docker image is residing on a secured registry with access token, specify a docker pull secret
+|appagile-central-registry
+
+|AUTOMATIC_IMAGE_TRIGGER
+|if true image will be deployed immediately, if false use "oc rollout latest dc/redis-node-<redis-node>"
+|false
+
+|REDIS_NODE
+|Node Name, e.g. 1 or 2, ...
+|1
+
+|MEMORY_REQUEST
+|The amout of memory required for the container to run.
+|2Gi
+
+|CPU_REQUEST
+|2000m
+|The minimum amount of CPU the container may consume
+
+|PERSISTENT_VOLUME_CLAIM_SIZE
+|Size of the required persistent data storage
+|2Gi
+
+|RECOVERY_MODE
+|To start the Redis-Container in Recovery Mode, set this parameter to true.
+|false
+
+|STORAGE_ACCESS_MODE
+|The storage access mode to be used
+|ReadWriteOnce
+
+|STORAGE_CLASS
+|The storage class to be used.
+|-
+
+|CLUSTER_NAME
+|The Redis cluster name.
+|"cluster"
+
+|QUORUM
+|Sentinel Quorum
+|2
+
+|DISABLE_AUTO_SAVE
+|Disable autosave (automatically snapshotting)
+|false
+
+
+|===
+
+.Table Parameters of template redis-node-backup
+|===
+|Parameter |Description |Default
+
+|IMAGE_STREAM_TAG
+|Tag for the imagestream to use
+|3.2
+
+|IMAGE_STREAM_NAME
+|Name of the imagestream
+|appagile-redis
+
+|IMAGE_STREAM_NAMESPACE
+|Namespace where the imagestream resides
+|openshift
+
+|IMAGE_PULL_SECRET
+|If the docker image is residing on a secured registry with access token, specify a docker pull secret
+|appagile-central-registry
+
+|AUTOMATIC_IMAGE_TRIGGER
+|if true image will be deployed immediately, if false use "oc rollout latest dc/redis-node-<redis-node>"
+|false
+
+|REDIS_NODE
+|Node Name, e.g. 1 or 2, ...
+|1
+
+|MEMORY_REQUEST
+|The amout of memory required for the container to run.
+|2Gi
+
+|CPU_REQUEST
+|2000m
+|The minimum amount of CPU the container may consume
+
+|PERSISTENT_VOLUME_CLAIM_SIZE
+|Size of the required persistent data storage
+|2Gi
+
+|RECOVERY_MODE
+|To start the Redis-Container in Recovery Mode, set this parameter to true.
+|false
+
+|STORAGE_ACCESS_MODE
+|The storage access mode to be used
+|ReadWriteOnce
+
+|STORAGE_CLASS
+|The storage class to be used.
+|-
+
+|CLUSTER_NAME
+|The Redis cluster name.
+|"cluster"
+
+|QUORUM
+|Sentinel Quorum
+|2
+
+|DISABLE_AUTO_SAVE
+|Disable autosave (automatically snapshotting)
+|false
+
+|BACKUP_IMAGE_STREAM_NAME
+|Name of the backup imagestream
+|appagile-backup-redis
+
+|BACKUP_IMAGE_STREAM_TAG
+|Tag for the backup imagestream
+|3.2
+
+|BACKUP_IMAGE_STREAM_NAMESPACE
+|Namespace where the backup imagestream resides
+|openshift
+
+|BACKUP_IMAGE_PULL_SECRET
+|If the backup docker image is residing on a secured registry with access token, specify a docker pull secret
+|appagile-central-registry
+
+|BACKUP_PERSISTENT_VOLUME_CLAIM_SIZE
+|Size of the required data storage for backups
+|2Gi
+
+|BACKUP_STORAGE_CLASS
+|The storage class to be used for backups
+|-
+
+|BACKUP_KEEP
+|Number of Backups should be kept in backup. Example: A value of 5 means: The last 5 backups are kept in storage. All others will be deleted.
+|3
+
+|BACKUP_HOUR
+|Hour in cron format. Examples: * - every hour, */2 - every 2 hours, 2 - every day at 2 o'clock, 6,12,18,0 - every day at 6, 12, 18, 0 o'clock.
+|0
+
+|BACKUP_MINUTE
+|Minute in cron format. Examples: * - every minute, */5 - every five minutes, 12,42 - fire at 12 min and 42 min past configured hours.
+|10
+
+|===
+
+
+
+.Table Parameters of template redis-sentinel
+|===
+|Parameter |Description |Default
+
+|IMAGE_STREAM_NAME
+|Name of the imagestream
+|appagile-redis
+
+|IMAGE_STREAM_TAG
+|Tag for the imagestream
+|3.2
+
+|IMAGE_STREAM_NAMESPACE
+|Namespace where the imagestream resides
+|openshift
+
+|AUTOMATIC_IMAGE_TRIGGER
+|if true image will be deployed immediately, if false use "oc rollout latest dc/redis-sentinel"
+|false
+
+|IMAGE_PULL_SECRET
+|If the docker image is residing on a secured registry with access token, specify a docker pull secret
+|appagile-central-registry
+
+|PEER_SERVICE
+|Service name
+|redis-node
+
+|QUORUM
+|Sentinel quorum
+|2
+
+|===
+
+=== Preparation
+Assure that the imagestreams and templates are available.
+
+==== Imagestream
+The deployment assumes that  the following imagestreams are in place.
+
+* {image-name}:{image-version} +
+This image provides the redis node. It acts as a master, a slave and a sentinel.
+
+* {backup-image-name}:{backup-image-version} +
+If you want to deploy a cluster with backup side container (using the template redis-node-backup) then make sure that this image is available and provided as an imagestream.
+
+If these imagestreams are not already available, then create it with following command sequences.
+
+==== Secret to import images
+A secret to import the image from AppAgiles central docker repository is needed.
+
+:SECRET_NAME: appagile-central-registry
+:TOKEN: $\{ACCESS_TOKEN_IMAGE_REPOSITORY}
+:PROJECT: openshift
+include::{macros-path-local}/deployment-macros/create-secret-for-central-registry.adoc[]
+
+=====  Import image {image-name}:{image-version}
+
+:PROJECT: openshift
+:IMAGESTREAM: {image-name}
+:IMAGESTREAM_TAG: {image-version}
+:IMAGE: appagile/{image-name}
+:IMAGE_TAG: {image-version}
+
+include::{macros-path-local}/deployment-macros/import-image-from-central-registry.adoc[]
+
+=====  Import image {backup-image-name}:{backup-image-version}
+
+:PROJECT: openshift
+:IMAGESTREAM: {backup-image-name}
+:IMAGESTREAM_TAG: {backup-image-version}
+:IMAGE: appagile/{backup-image-name}
+:IMAGE_TAG: {backup-image-version}
+
+include::{macros-path-local}/deployment-macros/import-image-from-central-registry.adoc[]
+
+
+==== Add Templates
+If templates are not already available, add them to the project. If you want to make them available for all projects then add them to project openshift. That is the recommended location and assumed where dealing with templates.
+
+===== Add templates to namespace openshift
+Add templates to namespace openshift in order to allow access to these templates from within all other projects.
+
+:GIT_REPOSISTORY: {git-home}
+:TEMPLATE_FILE: redis-node-template.yaml
+:TEMPLATE_NAMESPACE: openshift
+include::{macros-path-local}/deployment-macros/add-template-to-namespace.adoc[]
+
+:GIT_REPOSISTORY: {git-home}
+:TEMPLATE_FILE: redis-node-backup-template.yaml
+:TEMPLATE_NAMESPACE: openshift
+include::{macros-path-local}/deployment-macros/add-template-to-namespace.adoc[]
+
+:GIT_REPOSISTORY: {git-home}
+:TEMPLATE_FILE: redis-sentinel-template.yaml
+:TEMPLATE_NAMESPACE: openshift
+include::{macros-path-local}/deployment-macros/add-template-to-namespace.adoc[]
+
+
+
+===== Add templates to current namespace
+Add templates to current namespace, i. e. into current project. Choose this alternative in order to create local templates.
+
+:GIT_REPOSISTORY: {git-home}
+:TEMPLATE_FILE: redis-node-template.yaml
+:TEMPLATE_NAMESPACE: $\{PROJECT}
+include::{macros-path-local}/deployment-macros/add-template-to-namespace.adoc[]
+
+:GIT_REPOSISTORY: {git-home}
+:TEMPLATE_FILE: redis-node-backup-template.yaml
+:TEMPLATE_NAMESPACE: $\{PROJECT}
+include::{macros-path-local}/deployment-macros/add-template-to-namespace.adoc[]
+
+:GIT_REPOSISTORY: {git-home}
+:TEMPLATE_FILE: redis-sentinel-template.yaml
+:TEMPLATE_NAMESPACE: $\{PROJECT}
+include::{macros-path-local}/deployment-macros/add-template-to-namespace.adoc[]
+
+
+=== Deployment
+
+The following subsections show the procedure to deploy a redis cluster consisting of 1 master, two slaves and 3 sentinels, see <<basic-deployment-redis, basic deployment>>. This deployment further more consists of the service to backup the data with the backup side containers.
+
+:NOTE: If you want to deploy a redis cluster without backup side container follow the steps below but ignore the parameters for backup and use the template redis-node instead of redis-node-backup.
+
+Use appropriate values for parameters to configure your redis cluster properly, see <<template-parameters, parameter>> for meanings.
+
+==== Placeholder
+Note values of the following placeholder. They will be used in the deployment steps following.
+
+.Table Paceholder
+|===
+|Placeholder |Description
+
+|PROJECT
+|Name of the project where to deploy the redis cluster.
+
+|MAX_REDIS_NODES
+|Number of Redis nodes to deploy.
+
+|MAX_REDIS_SENTINELS
+|Number of Redis Sentinels to deploy.
+
+|===
+
+==== Environment
+Set some environment variables (Placeholder) for convenience. These environment variables will be used later on.
+----
+export MAX_REDIS_NODES=3 // <1>
+export MAX_REDIS_SENTINELS=3 // <2>
+----
+<1> set number of nodes according to your needs
+<2> set number of sentinels according to your needs
+
+==== Create Project
+Create a project for Redis and its resources. Replace the placeholder $\{PROJECT} with your project where you want to deploy your Redis cluster.
+
+`$ oc new-project $\{PROJECT}`
+
+
+==== Secret to pull images
+
+A secret to pull images from AppAgiles central docker repository is needed.
+
+Either create a secret with the provided token or use secret appagile-central-registry if provided in your project by default.
+To create the secret appagile-central-registry if not provided in your project, execute the following commands.
+
+:SECRET_NAME: appagile-central-registry
+:TOKEN: $\{ACCESS_TOKEN_IMAGE_REPOSITORY}
+:PROJECT: $\{PROJECT}
+include::{macros-path-local}/deployment-macros/create-secret-for-central-registry.adoc[]
+
+==== Service Accounts
+No extra service accounts are needed for deployment.
+
+==== Create three Redis node deployment configurations, services, etc.
+Process the redis-node-backup template. This automatically will create a deployment configurations, but neither scale nor deploy the nodes.
+----
+$ for i in $(seq 1 $MAX_REDIS_NODES); do
+ oc process openshift//redis-node-backup \
+ IMAGE_STREAM_NAME=appagile-redis \
+ IMAGE_STREAM_TAG=3.2 \
+ IMAGE_STREAM_NAMESPACE=openshift \
+ IMAGE_PULL_SECRET=appagile-central-registry \
+ REDIS_NODE=$i \
+ MEMORY_REQUEST=100Mi \
+ CPU_REQUEST=100m \
+ PERSISTENT_VOLUME_CLAIM_SIZE=100Mi \
+ BACKUP_PERSISTENT_VOLUME_CLAIM_SIZE=200Mi \
+ RECOVERY_MODE=false \
+ BACKUP_IMAGE_STREAM_TAG=1.0.0 \
+ BACKUP_IMAGE_STREAM_NAME=appagile-backup-redis \
+ BACKUP_IMAGE_STREAM_NAMESPACE=openshift \
+ QUORUM=2 \
+ DISABLE_AUTO_SAVE=true \
+ BACKUP_IMAGE_PULL_SECRET=appagile-central-registry \
+ BACKUP_HOUR='*' \
+ BACKUP_MINUTE='*/5' \
+ BACKUP_KEEP=3 \
+ | oc create -f -
+done
+----
+
+Note: if you are deploying the images in one of the OTC environment, the STORAGE_CLASS=otc-cns and BACKUP_STORAGE_CLASS=otc-cns options are also mandatory!
+
+Ignore the message `Error from server (AlreadyExists): persistentvolumeclaims "redis-backupclaim" already exists`
+
+
+==== Create a Sentinel deployment configuration
+Process the redis-sentinel template. This automatically will create a deployment configuration.
+----
+$ oc process openshift//redis-sentinel \
+ IMAGE_STREAM_NAME=appagile-redis \
+ IMAGE_STREAM_TAG=3.2 \
+ AUTOMATIC_IMAGE_TRIGGER=false \
+ QUORUM=2 | oc create -f -
+----
+
+==== Scale up nodes
+Scale up the deployment to a replica of 1.
+----
+$ for dc in $(oc get deploymentconfig -o name | grep redis-cluster-node); do
+    oc scale $dc --replicas=1
+done
+----
+
+==== Scale up to 3 sentinels
+Scale up redis sentinel deployment configuration.
+----
+$ oc scale --replicas=3 $(oc get deploymentconfig -o name | grep redis-sentinel)
+----
+
+
+==== Rollout nodes
+Since the deployment will not be rolled out automatically, this has to be done manually.
+----
+for dc in $(oc get deploymentconfig -o name | grep redis-cluster-node); do
+    oc rollout latest $dc
+done
+----
+
+==== Roll out sentinels
+Since the deployment will not be rolled out automatically, this has to be done manually.
+----
+$ oc rollout latest $(oc get deploymentconfig -o name | grep redis-sentinel)
+----
+
+
+=== Verify Deployment
+
+Use the following basic checks to verify the cluster is up and running properly.
+
+==== Basic checks
+----
+$ oc rsh <redis-node> //<1>
+$ redis-cli //<2>
+
+redis 127.0.0.1:6379> ping //<3>
+PONG
+
+redis 127.0.0.1:6379> set mykey somevalue //<4>
+OK
+
+redis 127.0.0.1:6379> get mykey // <5>
+"somevalue"
+
+redis 127.0.0.1:6379> del mykey // <6>
+(integer) 1
+----
+<1> enter any node pod of the cluster
+<2> start redis client
+<3> exec ping - answer should be PONG
+<4> add key-value pair
+<5> read value of previous inserted key-value
+<6> delete key-value pair
+
+==== Check Cluster information
+The INFO command returns information and statistics about the server.
+----
+$ oc rsh <redis-node> //<1>
+$ redis-cli //<2>
+
+redis 127.0.0.1:6379> INFO //<3>
+....
+----
+<1> enter any node pod of the cluster
+<2> start redis client
+<3> exec INFO command and check output, see https://redis.io/commands/INFO[INFO].
+
+==== Ask Sentinel about the state of a master
+The most obvious thing to do with Sentinel to get started, is check if the master it is monitoring is doing well.
+----
+$ oc rsh <sentinel> //<1>
+$ redis-cli -p 26379 <2>
+127.0.0.1:26379> sentinel master redis-cluster //<3>
+1) "name" //<4>
+2) "mymaster"
+3) "ip"
+4) "127.0.0.1"
+5) "port"
+6) "6379"
+7) "runid"
+...
+----
+<1> enter any sentinel pod of the cluster
+<2> start redis client at port 26379
+<3> exec command and check output, see https://redis.io/topics/sentinel#asking-sentinel-about-the-state-of-a-master[Sentinel information].
+
+As you can see, it prints a number of information about the master. There are a few that are of particular interest for us:
+
+* num-other-sentinels is 2, so we know the Sentinel already detected two more Sentinels for this master. If you check the logs you'll see the +sentinel events generated.
+* flags is just master. If the master was down we could expect to see s_down or o_down flag as well here.
+* num-slaves is correctly set to 1, so Sentinel also detected that there is an attached slave to our master.
+
+In order to explore more about this instance, you may want to try the following two commands.
+----
+SENTINEL slaves redis-cluster
+SENTINEL sentinels redis-cluster
+----
+
+
+=== Additional Deployment Tasks
+
+==== Adding a node
+Refer to <<deploy-slave-nodes, Deploy more Redis Slave Nodes>> to add another node to the cluster.
+
+
+==== Start new deployment
+A Redeployment is not supported. To start a new deplyoment first delete all artefacts, see <<delete-all-artefacts, Delete all Artefacts>>
+
+==== Delete all artefacts
+[[delete-all-artefacts]]
+----
+oc delete pvc,dc,pod,service --selector=redis
+----
+
+==== Add storage
+----
+$ oc volume -n redis dc/redis-node-1 --add --name=redis-data -t pvc --claim-name='redis-node-1' --claim-size='4Gi' --claim-mode='ReadWriteMany' --overwrite
+----
