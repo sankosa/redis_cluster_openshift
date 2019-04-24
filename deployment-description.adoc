@@ -10,21 +10,6 @@ The following deplyoment description depicts a setup of a redis cluster consisti
 * two more redis slaves,
 * and a set of three sentinels.
 
-Description of redis and sentinel nodes can be found in the documentation <<operational-description, Operational Description>>.
-
-==== Deployment Architecure
-A deployment of a basic redis cluster consisting of 3 nodes (one master and two slaves) and 3 sentinels looks like
-[[basic-deployment-redis]]
-image::basic-deployment-redis.png[Basic Deployment Architecure]
-
-
-This diagram shows a deployment with backup side container to provide backup up data on a regular basis. This container stores backups on a dedicated storage.
-
-The monitoring system Prometheus and the client are out of scope of this documentation.
-
-
-
-CAUTION: The client has to have access to the SDN, i.e. redis clients have to run on the same platform (Openshift) where the cluster resides. This is because of the sentinel is providing local addresses to the client, when clients ask for master to write data.
 
 ==== Prerequisites
 Several prerequisites have to be met to deploy a cluster successfully.

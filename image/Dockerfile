@@ -1,6 +1,6 @@
 FROM registry.access.redhat.com/rhscl/redis-32-rhel7:3.2
 
-LABEL maintainer appagile-team
+LABEL maintainer sandor.kosa
 
 COPY config/redis.conf /redis-templates/redis.conf
 COPY config/sentinel.conf /redis-templates/sentinel.conf
