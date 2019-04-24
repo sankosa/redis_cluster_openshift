@@ -1,4 +1,4 @@
-# Redis Cluster for RedHat OpenShift
+# Redis Cluster for OpenShift
 
 [Documentation](deployment-description.adoc)
 

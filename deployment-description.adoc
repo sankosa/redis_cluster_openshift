@@ -155,7 +155,7 @@ If these imagestreams are not already available, then create it with following c
 ----
 $ oc import-image redis_cluster_oscp:3.2 --from=docker.io/sankosa/redis_cluster_oscp:3.2 --confirm
 
-$ oc tag --source='docker' docker.io/sankosa/redis_cluster_oscp:3.2 redis_cluster_oscp:3.2 --scheduled=true -n openshift
+$ oc tag --source='docker' docker.io/sankosa/redis_cluster_oscp:3.2 redis_cluster_oscp:3.2 --scheduled=true
 ----
 
 The first command above creates an imagestream redis_cluster_oscps and import the metadata for image docker.io/sankosa/redis_cluster_oscp. +
@@ -365,10 +365,6 @@ SENTINEL sentinels redis-cluster
 
 
 === Additional Deployment Tasks
-
-==== Adding a node
-Refer to <<deploy-slave-nodes, Deploy more Redis Slave Nodes>> to add another node to the cluster.
-
 
 ==== Start new deployment
 A Redeployment is not supported. To start a new deplyoment first delete all artefacts, see <<delete-all-artefacts, Delete all Artefacts>>
