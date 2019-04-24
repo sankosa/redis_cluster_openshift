@@ -19,7 +19,7 @@ Several prerequisites have to be met to deploy a cluster successfully.
 
 ==== Version
 * redis_cluster_openshift:3.2
-* backup-redis_cluster_openshift:1.0.0
+* backup-redis_cluster_openshift:1.0
 
 ==== Persistent Storage
 The deployment supports persistent storage.
@@ -247,31 +247,32 @@ Assure that the imagestreams and templates are available.
 ==== Imagestream
 The deployment assumes that  the following imagestreams are in place.
 
-* {image-name}:{image-version} +
+* redis_cluster_openshift:3.2 +
 This image provides the redis node. It acts as a master, a slave and a sentinel.
 
-* {backup-image-name}:{backup-image-version} +
+* backup-redis_cluster_openshift:1.0 +
 If you want to deploy a cluster with backup side container (using the template redis-node-backup) then make sure that this image is available and provided as an imagestream.
 
 If these imagestreams are not already available, then create it with following command sequences.
 
 ==== Secret to import images
-In case if a secret to import the image from a docker repository is needed.
+In case if a secret to import the image from a docker repository is needed. +
+Example:
 
-:SECRET_NAME: registry-secret
-:TOKEN: $\{ACCESS_TOKEN_IMAGE_REPOSITORY}
-:PROJECT: openshift
-include::{macros-path-local}/deployment-macros/create-secret-for-central-registry.adoc[]
+----
+oc secrets new-dockercfg registry-secret --docker-username='nouser' --docker-server='<your_docker_registry_URL>' --docker-email='none@none' --docker-password='<your_token_to_your_regisgtry>' -n openshift
+----
 
-=====  Import image {image-name}:{image-version}
+=====  Import image redis_cluster_openshift:3.2
 
-:PROJECT: openshift
-:IMAGESTREAM: {image-name}
-:IMAGESTREAM_TAG: {image-version}
-:IMAGE: appagile/{image-name}
-:IMAGE_TAG: {image-version}
+----
+$ oc import-image redis_cluster_oscps:3.2 -n openshift --from=docker.io/sankosa/redis_cluster_oscp --confirm
 
-include::{macros-path-local}/deployment-macros/import-image-from-central-registry.adoc[]
+$ oc tag --source='docker' docker.io/sankosa/redis_cluster_oscp:3.2 redis_cluster_oscps:3.2 --scheduled=true -n openshift
+----
+
+The first command above creates an imagestream redis_cluster_oscps and import the metadata for image docker.io/sankosa/redis_cluster_oscp. +
+The second command add the --scheduled=true flag to have the destination tag be be refreshed (i.e., re-imported) periodically. The period is configured globally at system level. See link:https://docs.openshift.com/container-platform/3.11/dev_guide/managing_images.html#importing-tag-and-image-metadata[Importing Tag and Image Metadata] for more details
 
 =====  Import image {backup-image-name}:{backup-image-version}
 
