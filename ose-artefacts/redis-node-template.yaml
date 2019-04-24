@@ -183,7 +183,7 @@ parameters:
 - description: Name of the imagestream
   name: IMAGE_STREAM_NAME
   required: true
-  value: "redis_cluster_openshift"
+  value: "redis_cluster_oscp"
 - description: Namespace where the imagestream resides
   name: IMAGE_STREAM_NAMESPACE
   required: true
